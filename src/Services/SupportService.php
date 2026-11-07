@@ -34,7 +34,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
-final class SupportService implements SupportServiceInterface
+/**
+ * Default implementation of {@see SupportServiceInterface}.
+ *
+ * Owns the entire ticket lifecycle: creation, resolver assignment, status
+ * transitions, message threading, and best-effort notification delivery to
+ * the involved participants.
+ *
+ * Notifications are intentionally dispatched inside {@see self::runIsolated()}
+ * so that a transport failure never rolls back an already-persisted domain
+ * change.
+ */
+class SupportService implements SupportServiceInterface
 {
     public function __construct(
         private readonly TicketRepository $tickets,
@@ -42,10 +53,9 @@ final class SupportService implements SupportServiceInterface
         private readonly NotificationService $notifier,
     ) {}
 
-    // ══════════════════════════════════════════════════════════════════
-    // TICKETS — cycle de vie
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function createTicket(
         Model $creator,
         string $title,
@@ -73,24 +83,22 @@ final class SupportService implements SupportServiceInterface
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function assignTicket(Ticket $ticket, Model $resolver): Ticket
     {
         $previousResolver = $ticket->assignedTo;
 
-        /** @var Ticket $ticket */
-        $ticket = $this->tickets->updateRaw($ticket->id, [
-            'assigned_to_type' => $resolver->getMorphClass(),
-            'assigned_to_id' => (string) $resolver->getKey(),
-            'assigned_at' => now(),
-        ]);
+        $ticket = $this->replaceResolver($ticket, $resolver);
 
         $this->runIsolated(
             channel: 'assigned',
             callback: fn () => $this->notify(
-                $resolver,
-                NotificationType::TICKET_ASSIGNED,
-                "Ticket {$ticket->reference} vous a été assigné",
-                $ticket,
+                recipient: $resolver,
+                type: NotificationType::TICKET_ASSIGNED,
+                body: "Ticket {$ticket->reference} vous a été assigné",
+                ticket: $ticket,
             ),
         );
 
@@ -98,10 +106,10 @@ final class SupportService implements SupportServiceInterface
             $this->runIsolated(
                 channel: 'reassigned',
                 callback: fn () => $this->notify(
-                    $previousResolver,
-                    NotificationType::TICKET_REASSIGNED,
-                    "Ticket {$ticket->reference} a changé de résolveur",
-                    $ticket,
+                    recipient: $previousResolver,
+                    type: NotificationType::TICKET_REASSIGNED,
+                    body: "Ticket {$ticket->reference} a changé de résolveur",
+                    ticket: $ticket,
                 ),
             );
         }
@@ -109,25 +117,23 @@ final class SupportService implements SupportServiceInterface
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function changeResolver(Ticket $ticket, Model $newResolver): Ticket
     {
         $previousResolver = $ticket->assignedTo;
 
-        /** @var Ticket $ticket */
-        $ticket = $this->tickets->updateRaw($ticket->id, [
-            'assigned_to_type' => $newResolver->getMorphClass(),
-            'assigned_to_id' => (string) $newResolver->getKey(),
-            'assigned_at' => now(),
-        ]);
+        $ticket = $this->replaceResolver($ticket, $newResolver);
 
         if ($previousResolver !== null && ! $this->isSameModel($previousResolver, $newResolver)) {
             $this->runIsolated(
                 channel: 'reassigned',
                 callback: fn () => $this->notify(
-                    $previousResolver,
-                    NotificationType::TICKET_REASSIGNED,
-                    "Ticket {$ticket->reference} ne vous est plus assigné",
-                    $ticket,
+                    recipient: $previousResolver,
+                    type: NotificationType::TICKET_REASSIGNED,
+                    body: "Ticket {$ticket->reference} ne vous est plus assigné",
+                    ticket: $ticket,
                 ),
             );
         }
@@ -135,16 +141,19 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'assigned',
             callback: fn () => $this->notify(
-                $newResolver,
-                NotificationType::TICKET_ASSIGNED,
-                "Ticket {$ticket->reference} vous a été assigné",
-                $ticket,
+                recipient: $newResolver,
+                type: NotificationType::TICKET_ASSIGNED,
+                body: "Ticket {$ticket->reference} vous a été assigné",
+                ticket: $ticket,
             ),
         );
 
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function unassignTicket(Ticket $ticket): Ticket
     {
         $previousResolver = $ticket->assignedTo;
@@ -160,10 +169,10 @@ final class SupportService implements SupportServiceInterface
             $this->runIsolated(
                 channel: 'unassigned',
                 callback: fn () => $this->notify(
-                    $previousResolver,
-                    NotificationType::TICKET_UNASSIGNED,
-                    "Ticket {$ticket->reference} vous a été retiré",
-                    $ticket,
+                    recipient: $previousResolver,
+                    type: NotificationType::TICKET_UNASSIGNED,
+                    body: "Ticket {$ticket->reference} vous a été retiré",
+                    ticket: $ticket,
                 ),
             );
         }
@@ -171,6 +180,9 @@ final class SupportService implements SupportServiceInterface
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateStatus(Ticket $ticket, TicketStatus $status): Ticket
     {
         /** @var Ticket $ticket */
@@ -179,15 +191,18 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'status',
             callback: fn () => $this->notifyParticipants(
-                $ticket,
-                NotificationType::TICKET_STATUS_CHANGED,
-                "Statut du ticket {$ticket->reference} : {$status->getLabel()}",
+                ticket: $ticket,
+                type: NotificationType::TICKET_STATUS_CHANGED,
+                body: "Statut du ticket {$ticket->reference} : {$status->getLabel()}",
             ),
         );
 
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updatePriority(Ticket $ticket, TicketPriority $priority): Ticket
     {
         /** @var Ticket $ticket */
@@ -196,15 +211,18 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'priority',
             callback: fn () => $this->notifyParticipants(
-                $ticket,
-                NotificationType::TICKET_PRIORITY_CHANGED,
-                "Priorité du ticket {$ticket->reference} : {$priority->getLabel()}",
+                ticket: $ticket,
+                type: NotificationType::TICKET_PRIORITY_CHANGED,
+                body: "Priorité du ticket {$ticket->reference} : {$priority->getLabel()}",
             ),
         );
 
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function resolveTicket(Ticket $ticket): Ticket
     {
         /** @var Ticket $ticket */
@@ -216,15 +234,18 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'resolved',
             callback: fn () => $this->notifyParticipants(
-                $ticket,
-                NotificationType::TICKET_RESOLVED,
-                "Ticket {$ticket->reference} résolu",
+                ticket: $ticket,
+                type: NotificationType::TICKET_RESOLVED,
+                body: "Ticket {$ticket->reference} résolu",
             ),
         );
 
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function closeTicket(Ticket $ticket): Ticket
     {
         /** @var Ticket $ticket */
@@ -236,15 +257,18 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'closed',
             callback: fn () => $this->notifyParticipants(
-                $ticket,
-                NotificationType::TICKET_CLOSED,
-                "Ticket {$ticket->reference} fermé",
+                ticket: $ticket,
+                type: NotificationType::TICKET_CLOSED,
+                body: "Ticket {$ticket->reference} fermé",
             ),
         );
 
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function reopenTicket(Ticket $ticket): Ticket
     {
         /** @var Ticket $ticket */
@@ -257,19 +281,18 @@ final class SupportService implements SupportServiceInterface
         $this->runIsolated(
             channel: 'reopened',
             callback: fn () => $this->notifyParticipants(
-                $ticket,
-                NotificationType::TICKET_REOPENED,
-                "Ticket {$ticket->reference} rouvert",
+                ticket: $ticket,
+                type: NotificationType::TICKET_REOPENED,
+                body: "Ticket {$ticket->reference} rouvert",
             ),
         );
 
         return $ticket;
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // TICKETS — lecture
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function listTickets(TicketFiltersRecord $filters, int $limit = 50): Collection
     {
         return $this->tickets->findBy(new FindByRecord(
@@ -279,6 +302,9 @@ final class SupportService implements SupportServiceInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function paginateTickets(
         TicketFiltersRecord $filters,
         int $perPage = 15,
@@ -293,6 +319,9 @@ final class SupportService implements SupportServiceInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findTicket(string $ticketId): ?Ticket
     {
         /** @var Ticket|null $ticket */
@@ -301,20 +330,25 @@ final class SupportService implements SupportServiceInterface
         return $ticket;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findTicketByReference(string $reference): ?Ticket
     {
         return Ticket::query()->where('reference', $reference)->first();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countTickets(TicketFiltersRecord $filters): int
     {
         return $this->tickets->count($filters);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — création
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function addMessage(
         Ticket $ticket,
         Model $sender,
@@ -326,8 +360,8 @@ final class SupportService implements SupportServiceInterface
         $senderType = $this->resolveSenderType($ticket, $sender);
 
         /** @var TicketMessage $message */
-        $message = DB::transaction(function () use ($ticket, $senderType, $content, $replyTo, $isInternal, $metadata): TicketMessage {
-            return $this->messages->create(new TicketMessageRecord(
+        $message = DB::transaction(
+            fn (): TicketMessage => $this->messages->create(new TicketMessageRecord(
                 ticket_id: $ticket->id,
                 reply_to_id: $replyTo?->id,
                 sender_type: $senderType,
@@ -335,8 +369,8 @@ final class SupportService implements SupportServiceInterface
                 status: MessageStatus::SENT,
                 is_internal: $isInternal,
                 metadata: $metadata,
-            ));
-        });
+            )),
+        );
 
         $type = $replyTo !== null
             ? NotificationType::TICKET_MESSAGE_REPLY
@@ -344,16 +378,20 @@ final class SupportService implements SupportServiceInterface
 
         $this->runIsolated(
             channel: 'message',
-            callback: fn () => $this->notifyMessageParticipants($ticket, $sender, $message, $type),
+            callback: fn () => $this->notifyMessageParticipants(
+                ticket: $ticket,
+                sender: $sender,
+                message: $message,
+                type: $type,
+            ),
         );
 
         return $message;
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — lecture
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function listMessages(
         TicketMessageFiltersRecord $filters,
         int $limit = 100,
@@ -365,6 +403,9 @@ final class SupportService implements SupportServiceInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function paginateMessages(
         TicketMessageFiltersRecord $filters,
         int $perPage = 30,
@@ -379,6 +420,9 @@ final class SupportService implements SupportServiceInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function threadMessages(Ticket $ticket, bool $includeInternal = false): Collection
     {
         $query = TicketMessage::query()
@@ -392,6 +436,9 @@ final class SupportService implements SupportServiceInterface
         return $query->get();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findMessage(string $messageId): ?TicketMessage
     {
         /** @var TicketMessage|null $message */
@@ -400,15 +447,17 @@ final class SupportService implements SupportServiceInterface
         return $message;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countMessages(TicketMessageFiltersRecord $filters): int
     {
         return $this->messages->count($filters);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — statut
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function markMessageDispatched(TicketMessage $message): TicketMessage
     {
         /** @var TicketMessage $message */
@@ -419,6 +468,9 @@ final class SupportService implements SupportServiceInterface
         return $message;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function markMessageRead(TicketMessage $message): TicketMessage
     {
         /** @var TicketMessage $message */
@@ -429,6 +481,9 @@ final class SupportService implements SupportServiceInterface
         return $message;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function markAllMessagesRead(Ticket $ticket, Model $reader): int
     {
         return TicketMessage::query()
@@ -437,10 +492,29 @@ final class SupportService implements SupportServiceInterface
             ->update(['status' => MessageStatus::READ->value]);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // NOTIFICATIONS — DatabaseChannel uniquement
-    // ══════════════════════════════════════════════════════════════════
+    /**
+     * Persist a new resolver on the ticket.
+     *
+     * Extracted to avoid duplicating the same raw update in
+     * {@see self::assignTicket()} and {@see self::changeResolver()}.
+     */
+    private function replaceResolver(Ticket $ticket, Model $resolver): Ticket
+    {
+        /** @var Ticket $ticket */
+        $ticket = $this->tickets->updateRaw($ticket->id, [
+            'assigned_to_type' => $resolver->getMorphClass(),
+            'assigned_to_id' => (string) $resolver->getKey(),
+            'assigned_at' => now(),
+        ]);
 
+        return $ticket;
+    }
+
+    /**
+     * Send a database notification about a ticket to a single recipient.
+     *
+     * Silently no-ops when the recipient is not notifiable.
+     */
     private function notify(
         Model $recipient,
         NotificationType $type,
@@ -451,20 +525,18 @@ final class SupportService implements SupportServiceInterface
             return;
         }
 
-        $data = [
-            'ticket_id' => $ticket->id,
-            'ticket_reference' => $ticket->reference,
-            'ticket_title' => $ticket->title,
-            'notification_type' => $type->value,
-        ];
-
         $this->notifier->sendNow(
             $recipient,
             NotificationMessageVO::from([
                 'body' => $body,
                 'subject' => $ticket->title,
                 'type' => $type->value,
-                'data' => $data,
+                'data' => [
+                    'ticket_id' => $ticket->id,
+                    'ticket_reference' => $ticket->reference,
+                    'ticket_title' => $ticket->title,
+                    'notification_type' => $type->value,
+                ],
             ]),
             SendNowRecord::from([
                 'channels' => [DatabaseChannel::class],
@@ -473,61 +545,83 @@ final class SupportService implements SupportServiceInterface
         );
     }
 
+    /**
+     * Notify every participant attached to the ticket.
+     */
     private function notifyParticipants(
         Ticket $ticket,
         NotificationType $type,
         string $body,
     ): void {
-        $participants = array_filter([
-            $ticket->createdBy,
-            $ticket->assignedTo,
-        ]);
-
-        foreach ($participants as $participant) {
-            $this->notify($participant, $type, $body, $ticket);
+        foreach ($this->participantsOf($ticket) as $participant) {
+            $this->notify(
+                recipient: $participant,
+                type: $type,
+                body: $body,
+                ticket: $ticket,
+            );
         }
     }
 
+    /**
+     * Notify every participant except the given sender about a new message.
+     */
     private function notifyMessageParticipants(
         Ticket $ticket,
         Model $sender,
         TicketMessage $message,
         NotificationType $type,
     ): void {
-        $participants = array_filter([
-            $ticket->createdBy,
-            $ticket->assignedTo,
-        ]);
-
-        foreach ($participants as $participant) {
+        foreach ($this->participantsOf($ticket) as $participant) {
             if ($this->isSameModel($participant, $sender)) {
                 continue;
             }
 
-            $body = sprintf(
-                'Nouveau message de %s sur le ticket %s : %s',
-                $sender->getKey(),
-                $ticket->reference,
-                $this->truncate($message->content, 120),
+            $this->notify(
+                recipient: $participant,
+                type: $type,
+                body: sprintf(
+                    'Nouveau message de %s sur le ticket %s : %s',
+                    $sender->getKey(),
+                    $ticket->reference,
+                    $this->truncate($message->content, 120),
+                ),
+                ticket: $ticket,
             );
-
-            $this->notify($participant, $type, $body, $ticket);
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // HELPERS
-    // ══════════════════════════════════════════════════════════════════
+    /**
+     * Return the ticket participants that are actual models (creator + resolver).
+     *
+     * @return array<int, Model>
+     */
+    private function participantsOf(Ticket $ticket): array
+    {
+        return array_values(array_filter([
+            $ticket->createdBy,
+            $ticket->assignedTo,
+        ]));
+    }
 
+    /**
+     * Execute the given callback and swallow any thrown exception.
+     *
+     * Notifications are best-effort: a delivery failure must never
+     * invalidate a successful domain write.
+     */
     private function runIsolated(string $channel, callable $callback): void
     {
         try {
             $callback();
-        } catch (Throwable $e) {
-            // swallow — notification is best-effort, DB write already done
+        } catch (Throwable) {
+            // Notification failures are not propagated by design.
         }
     }
 
+    /**
+     * Determine the sender role of a message relative to its ticket.
+     */
     private function resolveSenderType(Ticket $ticket, Model $sender): SenderType
     {
         $creator = $ticket->createdBy;
@@ -539,12 +633,18 @@ final class SupportService implements SupportServiceInterface
         return SenderType::RESOLVER;
     }
 
+    /**
+     * Check whether two models point to the same underlying database row.
+     */
     private function isSameModel(Model $a, Model $b): bool
     {
         return $a->getMorphClass() === $b->getMorphClass()
             && (string) $a->getKey() === (string) $b->getKey();
     }
 
+    /**
+     * Generate a unique human-readable ticket reference.
+     */
     private function generateReference(): string
     {
         do {
@@ -554,6 +654,9 @@ final class SupportService implements SupportServiceInterface
         return $reference;
     }
 
+    /**
+     * Truncate a string to the given maximum length, appending an ellipsis.
+     */
     private function truncate(string $value, int $max): string
     {
         return mb_strlen($value) <= $max

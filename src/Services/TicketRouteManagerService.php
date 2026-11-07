@@ -45,6 +45,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Throwable;
 
+/**
+ * HTTP-facing orchestration of the ticket feature.
+ *
+ * Each public method corresponds to a single route action. It validates the
+ * inbound request against the current authenticated actor, delegates the
+ * business operation to {@see SupportServiceInterface}, runs the corresponding
+ * lifecycle hooks (before/after), and shapes the final JSON response through
+ * {@see DataBuilder}.
+ *
+ * Hooks are intentionally declared as protected methods returning a nullable
+ * {@see ErrorResponseData}: subclasses may override any of them to inject
+ * cross-cutting concerns (authorization, logging, metrics…) without touching
+ * the orchestration flow.
+ */
 class TicketRouteManagerService implements TicketRouteManagerServiceInterface
 {
     public function __construct(
@@ -52,10 +66,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         protected readonly NemesisHelper $helper,
     ) {}
 
-    // ══════════════════════════════════════════════════════════════════
-    // TICKETS — cycle de vie
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function storeTicket(CreateTicketRecord $record): ResponseFactory
     {
         $creator = $this->helper->getCurrentAuthenticatable();
@@ -65,11 +78,11 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         }
 
         $before = $this->beforeStoreTicket(
-            $creator,
-            $record->title,
-            $record->description,
-            $record->priority,
-            $record->metadata,
+            creator: $creator,
+            title: $record->title,
+            description: $record->description,
+            priority: $record->priority,
+            metadata: $record->metadata,
         );
 
         if ($before instanceof ErrorResponseData) {
@@ -93,9 +106,17 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket), 201);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateTicket(UpdateTicketRecord $record): ResponseFactory
     {
-        $before = $this->beforeUpdateTicket($record->ticket_id, $record->title, $record->description, $record->priority);
+        $before = $this->beforeUpdateTicket(
+            ticketId: $record->ticket_id,
+            title: $record->title,
+            description: $record->description,
+            priority: $record->priority,
+        );
 
         if ($before instanceof ErrorResponseData) {
             return $this->errorResponse($before);
@@ -107,11 +128,16 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
             return $this->error(ErrorCode::TICKET_NOT_FOUND);
         }
 
-        if ($record->title !== null || $record->description !== null) {
-            $ticket->update(array_filter([
+        $editableFields = array_filter(
+            [
                 'title' => $record->title,
                 'description' => $record->description,
-            ], fn ($v) => $v !== null));
+            ],
+            fn ($value) => $value !== null,
+        );
+
+        if ($editableFields !== []) {
+            $ticket->update($editableFields);
         }
 
         if ($record->priority !== null) {
@@ -127,15 +153,20 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function destroyTicket(DestroyTicketRecord $record): ResponseFactory
     {
-        $before = $this->beforeDestroyTicket((string) $record->ticket_id);
+        $ticketId = (string) $record->ticket_id;
+
+        $before = $this->beforeDestroyTicket($ticketId);
 
         if ($before instanceof ErrorResponseData) {
             return $this->errorResponse($before);
         }
 
-        $ticket = $this->support->findTicket((string) $record->ticket_id);
+        $ticket = $this->support->findTicket($ticketId);
 
         if ($ticket === null) {
             return $this->error(ErrorCode::TICKET_NOT_FOUND);
@@ -143,15 +174,18 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
 
         $ticket->delete();
 
-        $after = $this->afterDestroyTicket((string) $record->ticket_id);
+        $after = $this->afterDestroyTicket($ticketId);
 
         if ($after instanceof ErrorResponseData) {
             return $this->errorResponse($after);
         }
 
-        return ResponseFactory::json(DataBuilder::ticketDeleted((string) $record->ticket_id));
+        return ResponseFactory::json(DataBuilder::ticketDeleted($ticketId));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function assignTicket(AssignTicketRecord $record): ResponseFactory
     {
         $resolver = $this->resolveResolver((string) $record->resolver_type, (string) $record->resolver_id);
@@ -187,6 +221,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function reassignTicket(ReassignTicketRecord $record): ResponseFactory
     {
         $resolver = $this->resolveResolver((string) $record->resolver_type, (string) $record->resolver_id);
@@ -222,6 +259,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function unassignTicket(UnassignTicketRecord $record): ResponseFactory
     {
         $before = $this->beforeUnassignTicket((string) $record->ticket_id);
@@ -247,6 +287,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function resolveTicket(ResolveTicketRecord $record): ResponseFactory
     {
         $before = $this->beforeResolveTicket((string) $record->ticket_id);
@@ -272,6 +315,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function closeTicket(CloseTicketRecord $record): ResponseFactory
     {
         $before = $this->beforeCloseTicket((string) $record->ticket_id);
@@ -297,6 +343,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function reopenTicket(ReopenTicketRecord $record): ResponseFactory
     {
         $before = $this->beforeReopenTicket((string) $record->ticket_id);
@@ -322,6 +371,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateStatus(UpdateTicketStatusRecord $record): ResponseFactory
     {
         $before = $this->beforeUpdateStatus((string) $record->ticket_id, $record->status);
@@ -347,6 +399,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updatePriority(UpdateTicketPriorityRecord $record): ResponseFactory
     {
         $before = $this->beforeUpdatePriority((string) $record->ticket_id, $record->priority);
@@ -372,10 +427,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // TICKETS — lecture
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function indexTickets(ListTicketsRecord $record): ResponseFactory
     {
         $filters = new TicketFiltersRecord(
@@ -408,6 +462,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketPaginated($paginator));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function showTicket(ShowTicketRecord $record): ResponseFactory
     {
         $before = $this->beforeShowTicket((string) $record->ticket_id);
@@ -431,10 +488,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticket($ticket));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — création
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function storeMessage(SendMessageRecord $record): ResponseFactory
     {
         $sender = $this->helper->getCurrentAuthenticatable();
@@ -444,12 +500,12 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         }
 
         $before = $this->beforeStoreMessage(
-            (string) $record->ticket_id,
-            $sender,
-            (string) $record->content,
-            $record->reply_to_id,
-            (bool) $record->is_internal,
-            $record->metadata,
+            ticketId: (string) $record->ticket_id,
+            sender: $sender,
+            content: (string) $record->content,
+            replyToId: $record->reply_to_id,
+            isInternal: (bool) $record->is_internal,
+            metadata: $record->metadata,
         );
 
         if ($before instanceof ErrorResponseData) {
@@ -488,10 +544,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketMessage($message), 201);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — lecture
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function indexMessages(ListMessagesRecord $record): ResponseFactory
     {
         $filters = new TicketMessageFiltersRecord(
@@ -523,6 +578,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketMessagePaginated($paginator));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function threadMessages(ThreadMessagesRecord $record): ResponseFactory
     {
         $before = $this->beforeThreadMessages((string) $record->ticket_id, (bool) $record->include_internal);
@@ -545,24 +603,12 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
             return $this->errorResponse($after);
         }
 
-        $all = $messages->all();
-        $total = count($all);
-        $perPage = $record->per_page;
-        $page = $record->page;
-        $lastPage = (int) max(1, ceil($total / $perPage));
-        $slice = array_slice($all, ($page - 1) * $perPage, $perPage);
-
-        return ResponseFactory::json(PaginatedResponseData::from([
-            'items' => DataBuilder::ticketMessageCollection(collect($slice)),
-            'currentPage' => $page,
-            'perPage' => $perPage,
-            'total' => $total,
-            'lastPage' => $lastPage,
-            'nextPageUrl' => null,
-            'prevPageUrl' => null,
-        ]));
+        return ResponseFactory::json($this->paginateInMemory($messages, $record->per_page, $record->page));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function showMessage(ShowMessageRecord $record): ResponseFactory
     {
         $before = $this->beforeShowMessage((string) $record->ticket_id, (string) $record->message_id);
@@ -590,10 +636,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketMessage($message));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // MESSAGES — statut
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * {@inheritDoc}
+     */
     public function markMessageDispatched(MarkMessageDispatchedRecord $record): ResponseFactory
     {
         $before = $this->beforeMarkMessageDispatched((string) $record->ticket_id, (string) $record->message_id);
@@ -623,6 +668,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketMessage($message));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function markMessageRead(MarkMessageReadRecord $record): ResponseFactory
     {
         $before = $this->beforeMarkMessageRead((string) $record->ticket_id, (string) $record->message_id);
@@ -652,6 +700,9 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::ticketMessage($message));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function markAllMessagesRead(MarkAllMessagesReadRecord $record): ResponseFactory
     {
         $reader = $this->helper->getCurrentAuthenticatable();
@@ -683,20 +734,28 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return ResponseFactory::json(DataBuilder::messagesReadResult((string) $record->ticket_id, $count));
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // HELPERS
-    // ══════════════════════════════════════════════════════════════════
-
+    /**
+     * Build an error response from an application error code.
+     */
     private function error(ErrorCode $code, ?string $message = null): ResponseFactory
     {
         return $code->toJsonResponseFactory($message);
     }
 
+    /**
+     * Build a response from a pre-built error payload.
+     */
     private function errorResponse(ErrorResponseData $data): ResponseFactory
     {
         return ResponseFactory::json($data, $data->status);
     }
 
+    /**
+     * Resolve a model reference from its morph type and identifier.
+     *
+     * Returns null when the type is not an Eloquent model class or when no
+     * row matches the given identifier.
+     */
     private function resolveResolver(string $type, string $id): ?Model
     {
         if (! class_exists($type) || ! is_subclass_of($type, Model::class)) {
@@ -706,205 +765,352 @@ class TicketRouteManagerService implements TicketRouteManagerServiceInterface
         return $type::query()->find($id);
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    // HOOKS — retournent ?ErrorResponseData
-    // ══════════════════════════════════════════════════════════════════
+    /**
+     * Paginate an in-memory collection using the given page size.
+     *
+     * Wraps the result in a {@see PaginatedResponseData} compatible with the
+     * standard paginator output. `next` and `previous` URLs are left null
+     * because the thread endpoint has no pagination links.
+     *
+     * @param  Collection<int, TicketMessage>  $messages
+     */
+    private function paginateInMemory(Collection $messages, int $perPage, int $page): PaginatedResponseData
+    {
+        $all = $messages->all();
+        $total = count($all);
+        $lastPage = (int) max(1, (int) ceil($total / $perPage));
+        $slice = array_slice($all, ($page - 1) * $perPage, $perPage);
 
+        return PaginatedResponseData::from([
+            'items' => DataBuilder::ticketMessageCollection(collect($slice)),
+            'currentPage' => $page,
+            'perPage' => $perPage,
+            'total' => $total,
+            'lastPage' => $lastPage,
+            'nextPageUrl' => null,
+            'prevPageUrl' => null,
+        ]);
+    }
+
+    /**
+     * Hook executed before {@see self::storeTicket()}.
+     *
+     * @param  Model&NotifiableInterface  $creator
+     */
     protected function beforeStoreTicket(Model $creator, string $title, string $description, ?TicketPriority $priority, ?StrictAssociative $metadata): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::storeTicket()}.
+     */
     protected function afterStoreTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::updateTicket()}.
+     */
     protected function beforeUpdateTicket(?string $ticketId, ?string $title, ?string $description, ?TicketPriority $priority): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::updateTicket()}.
+     */
     protected function afterUpdateTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::destroyTicket()}.
+     */
     protected function beforeDestroyTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::destroyTicket()}.
+     */
     protected function afterDestroyTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::assignTicket()}.
+     */
     protected function beforeAssignTicket(string $ticketId, Model $resolver): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::assignTicket()}.
+     */
     protected function afterAssignTicket(Ticket $ticket, Model $resolver): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::reassignTicket()}.
+     */
     protected function beforeReassignTicket(string $ticketId, Model $newResolver): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::reassignTicket()}.
+     */
     protected function afterReassignTicket(Ticket $ticket, Model $newResolver): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::unassignTicket()}.
+     */
     protected function beforeUnassignTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::unassignTicket()}.
+     */
     protected function afterUnassignTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::resolveTicket()}.
+     */
     protected function beforeResolveTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::resolveTicket()}.
+     */
     protected function afterResolveTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::closeTicket()}.
+     */
     protected function beforeCloseTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::closeTicket()}.
+     */
     protected function afterCloseTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::reopenTicket()}.
+     */
     protected function beforeReopenTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::reopenTicket()}.
+     */
     protected function afterReopenTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::updateStatus()}.
+     */
     protected function beforeUpdateStatus(string $ticketId, TicketStatus $status): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::updateStatus()}.
+     */
     protected function afterUpdateStatus(Ticket $ticket, TicketStatus $status): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::updatePriority()}.
+     */
     protected function beforeUpdatePriority(string $ticketId, TicketPriority $priority): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::updatePriority()}.
+     */
     protected function afterUpdatePriority(Ticket $ticket, TicketPriority $priority): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::indexTickets()}.
+     */
     protected function beforePaginateTickets(TicketFiltersRecord $filters, int $perPage, int $page): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::indexTickets()}.
+     */
     protected function afterPaginateTickets(LengthAwarePaginator $paginator): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::showTicket()}.
+     */
     protected function beforeShowTicket(string $ticketId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::showTicket()}.
+     */
     protected function afterShowTicket(Ticket $ticket): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::storeMessage()}.
+     */
     protected function beforeStoreMessage(string $ticketId, Model $sender, string $content, ?string $replyToId, bool $isInternal, ?StrictAssociative $metadata): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::storeMessage()}.
+     */
     protected function afterStoreMessage(TicketMessage $message): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::indexMessages()}.
+     */
     protected function beforePaginateMessages(TicketMessageFiltersRecord $filters, int $perPage, int $page): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::indexMessages()}.
+     */
     protected function afterPaginateMessages(LengthAwarePaginator $paginator): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::threadMessages()}.
+     */
     protected function beforeThreadMessages(string $ticketId, bool $includeInternal): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::threadMessages()}.
+     *
+     * @param  Collection<int, TicketMessage>  $result
+     */
     protected function afterThreadMessages(Ticket $ticket, Collection $result): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::showMessage()}.
+     */
     protected function beforeShowMessage(string $ticketId, string $messageId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::showMessage()}.
+     */
     protected function afterShowMessage(TicketMessage $message): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::markMessageDispatched()}.
+     */
     protected function beforeMarkMessageDispatched(string $ticketId, string $messageId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::markMessageDispatched()}.
+     */
     protected function afterMarkMessageDispatched(TicketMessage $message): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::markMessageRead()}.
+     */
     protected function beforeMarkMessageRead(string $ticketId, string $messageId): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::markMessageRead()}.
+     */
     protected function afterMarkMessageRead(TicketMessage $message): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed before {@see self::markAllMessagesRead()}.
+     */
     protected function beforeMarkAllMessagesRead(string $ticketId, Model $reader): ?ErrorResponseData
     {
         return null;
     }
 
+    /**
+     * Hook executed after {@see self::markAllMessagesRead()}.
+     */
     protected function afterMarkAllMessagesRead(string $ticketId, Model $reader, int $count): ?ErrorResponseData
     {
         return null;

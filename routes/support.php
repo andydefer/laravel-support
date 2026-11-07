@@ -6,18 +6,16 @@ use AndyDefer\Support\Enums\TicketRoute;
 use Illuminate\Support\Facades\Route;
 
 /*
- * Support Routes
+ * Support API routes.
  *
- * Chaque route est associée à un TicketRoute (enum) qui lie
- * Request + méthode du service via le helper `support_route`.
+ * Every route is bound to a TicketRoute enum case, which links the
+ * inbound Request to the matching TicketRouteManagerService method
+ * through the `support_route` helper.
  */
+
 Route::name('api.')
     ->middleware(['nemesis.api.verified'])
     ->group(function (): void {
-
-        // ══════════════════════════════════════════════════════════════
-        // TICKETS — CRUD
-        // ══════════════════════════════════════════════════════════════
 
         Route::prefix('/tickets')->name('tickets.')->group(function (): void {
 
@@ -32,7 +30,6 @@ Route::name('api.')
                     Route::patch('/', support_route(TicketRoute::UPDATE_TICKET))->name('update');
                     Route::delete('/', support_route(TicketRoute::DESTROY_TICKET))->name('destroy');
 
-                    // Workflow
                     Route::post('/assign', support_route(TicketRoute::ASSIGN_TICKET))->name('assign');
                     Route::post('/reassign', support_route(TicketRoute::REASSIGN_TICKET))->name('reassign');
                     Route::post('/unassign', support_route(TicketRoute::UNASSIGN_TICKET))->name('unassign');
@@ -43,10 +40,6 @@ Route::name('api.')
                     Route::post('/priority', support_route(TicketRoute::UPDATE_PRIORITY))->name('priority');
                 });
         });
-
-        // ══════════════════════════════════════════════════════════════
-        // MESSAGES
-        // ══════════════════════════════════════════════════════════════
 
         Route::prefix('/tickets/{ticketId}/messages')
             ->where(['ticketId' => '[0-9a-f-]{36}'])

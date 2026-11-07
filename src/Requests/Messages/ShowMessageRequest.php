@@ -18,7 +18,7 @@ final class ShowMessageRequest extends AbstractRequest
     public function getRecord(): AbstractRecord
     {
         return ShowMessageRecord::from([
-            'ticket_id'  => (string) $this->route('ticketId'),
+            'ticket_id' => (string) $this->route('ticketId'),
             'message_id' => (string) $this->route('id'),
         ]);
     }

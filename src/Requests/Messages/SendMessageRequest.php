@@ -14,21 +14,21 @@ final class SendMessageRequest extends AbstractRequest
     public function rules(): array
     {
         return [
-            'content'     => ['required', 'string', 'max:20000'],
+            'content' => ['required', 'string', 'max:20000'],
             'reply_to_id' => ['nullable', 'uuid'],
             'is_internal' => ['nullable', 'boolean'],
-            'metadata'    => ['nullable', 'array'],
+            'metadata' => ['nullable', 'array'],
         ];
     }
 
     public function getRecord(): AbstractRecord
     {
         return SendMessageRecord::from([
-            'ticket_id'   => (string) $this->route('ticketId'),
-            'content'     => $this->input('content'),
+            'ticket_id' => (string) $this->route('ticketId'),
+            'content' => $this->input('content'),
             'reply_to_id' => $this->input('reply_to_id'),
             'is_internal' => (bool) $this->input('is_internal', false),
-            'metadata'    => $this->input('metadata') !== null
+            'metadata' => $this->input('metadata') !== null
                 ? StrictAssociative::from($this->input('metadata'))
                 : null,
         ]);

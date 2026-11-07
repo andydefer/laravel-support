@@ -26,50 +26,113 @@ use AndyDefer\Support\Records\UpdateTicketPriorityRecord;
 use AndyDefer\Support\Records\UpdateTicketRecord;
 use AndyDefer\Support\Records\UpdateTicketStatusRecord;
 
+/**
+ * Contract for the HTTP-facing orchestration layer of support tickets.
+ *
+ * Exposes one method per route action, each consuming a strongly-typed
+ * record and returning a fully-built {@see ResponseFactory}. The interface
+ * intentionally hides business logic: implementations are responsible for
+ * delegating to the domain service and shaping the HTTP response.
+ */
 interface TicketRouteManagerServiceInterface
 {
-    // TICKETS — cycle de vie
+    /**
+     * Open a new support ticket.
+     */
     public function storeTicket(CreateTicketRecord $record): ResponseFactory;
 
+    /**
+     * Update the editable fields of an existing ticket.
+     */
     public function updateTicket(UpdateTicketRecord $record): ResponseFactory;
 
+    /**
+     * Permanently delete a ticket.
+     */
     public function destroyTicket(DestroyTicketRecord $record): ResponseFactory;
 
+    /**
+     * Assign an unassigned ticket to a resolver.
+     */
     public function assignTicket(AssignTicketRecord $record): ResponseFactory;
 
+    /**
+     * Reassign a ticket to another resolver, replacing the current one.
+     */
     public function reassignTicket(ReassignTicketRecord $record): ResponseFactory;
 
+    /**
+     * Remove the current resolver from a ticket.
+     */
     public function unassignTicket(UnassignTicketRecord $record): ResponseFactory;
 
+    /**
+     * Mark a ticket as resolved.
+     */
     public function resolveTicket(ResolveTicketRecord $record): ResponseFactory;
 
+    /**
+     * Mark a ticket as closed.
+     */
     public function closeTicket(CloseTicketRecord $record): ResponseFactory;
 
+    /**
+     * Reopen a previously resolved or closed ticket.
+     */
     public function reopenTicket(ReopenTicketRecord $record): ResponseFactory;
 
+    /**
+     * Change the status of a ticket.
+     */
     public function updateStatus(UpdateTicketStatusRecord $record): ResponseFactory;
 
+    /**
+     * Change the priority of a ticket.
+     */
     public function updatePriority(UpdateTicketPriorityRecord $record): ResponseFactory;
 
-    // TICKETS — lecture
+    /**
+     * List tickets matching the given filters.
+     */
     public function indexTickets(ListTicketsRecord $record): ResponseFactory;
 
+    /**
+     * Show a single ticket by identifier.
+     */
     public function showTicket(ShowTicketRecord $record): ResponseFactory;
 
-    // MESSAGES — création
+    /**
+     * Append a message to a ticket.
+     */
     public function storeMessage(SendMessageRecord $record): ResponseFactory;
 
-    // MESSAGES — lecture
+    /**
+     * List messages matching the given filters.
+     */
     public function indexMessages(ListMessagesRecord $record): ResponseFactory;
 
+    /**
+     * Return the full chronological thread of a ticket.
+     */
     public function threadMessages(ThreadMessagesRecord $record): ResponseFactory;
 
+    /**
+     * Show a single message by identifier.
+     */
     public function showMessage(ShowMessageRecord $record): ResponseFactory;
 
-    // MESSAGES — statut
+    /**
+     * Mark a message as dispatched by the notification transport.
+     */
     public function markMessageDispatched(MarkMessageDispatchedRecord $record): ResponseFactory;
 
+    /**
+     * Mark a message as read.
+     */
     public function markMessageRead(MarkMessageReadRecord $record): ResponseFactory;
 
+    /**
+     * Mark every non-read message of a ticket as read.
+     */
     public function markAllMessagesRead(MarkAllMessagesReadRecord $record): ResponseFactory;
 }

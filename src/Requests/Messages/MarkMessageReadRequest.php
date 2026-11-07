@@ -18,7 +18,7 @@ final class MarkMessageReadRequest extends AbstractRequest
     public function getRecord(): AbstractRecord
     {
         return MarkMessageReadRecord::from([
-            'ticket_id'  => (string) $this->route('ticketId'),
+            'ticket_id' => (string) $this->route('ticketId'),
             'message_id' => (string) $this->route('id'),
         ]);
     }

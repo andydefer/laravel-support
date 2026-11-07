@@ -117,9 +117,9 @@ enum ErrorCode: string implements ErrorDescribable
     ): ErrorResponseData {
         return ErrorResponseData::from([
             'errorCode' => $this->value,
-            'message'   => $message ?? $this->getMessage(),
-            'status'    => $this->getHttpStatusCode(),
-            'errors'    => $errors,
+            'message' => $message ?? $this->getMessage(),
+            'status' => $this->getHttpStatusCode(),
+            'errors' => $errors,
         ]);
     }
 
