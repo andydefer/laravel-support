@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -22,10 +21,9 @@ use Illuminate\Support\Carbon;
  * @property string $ticket_id
  * @property string|null $reply_to_id
  * @property SenderType $sender_type
- * @property string $author_type
- * @property string $author_id
  * @property string $content
  * @property MessageStatus $status
+ * @property bool $is_internal
  * @property array|null $metadata
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -33,7 +31,6 @@ use Illuminate\Support\Carbon;
  * @property-read Ticket $ticket
  * @property-read TicketMessage|null $replyTo
  * @property-read Collection<int, TicketMessage> $replies
- * @property-read Model|null $author
  */
 final class TicketMessage extends Model
 {
@@ -51,16 +48,16 @@ final class TicketMessage extends Model
         'ticket_id',
         'reply_to_id',
         'sender_type',
-        'author_type',
-        'author_id',
         'content',
         'status',
+        'is_internal',
         'metadata',
     ];
 
     protected $casts = [
         'sender_type' => SenderType::class,
         'status' => MessageStatus::class,
+        'is_internal' => 'boolean',
         'metadata' => 'array',
     ];
 
@@ -77,11 +74,6 @@ final class TicketMessage extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'reply_to_id');
-    }
-
-    public function author(): MorphTo
-    {
-        return $this->morphTo();
     }
 
     protected static function newFactory(): TicketMessageFactory

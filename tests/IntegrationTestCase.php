@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests;
+namespace AndyDefer\Support\Tests;
 
-use AndyDefer\LaravelRatings\RatingsServiceProvider;
+use AndyDefer\LaravelNotification\NotificationServiceProvider;
+use AndyDefer\Logger\LoggerServiceProvider;
+use AndyDefer\Support\SupportServiceProvider;
+use AndyDefer\Task\TaskServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class IntegrationTestCase extends Orchestra
@@ -17,14 +20,17 @@ abstract class IntegrationTestCase extends Orchestra
 
     protected function tearDown(): void
     {
-        parent::tearDown();
         \Mockery::close();
+        parent::tearDown();
     }
 
     protected function getPackageProviders($app): array
     {
         return [
-            RatingsServiceProvider::class,
+            LoggerServiceProvider::class,
+            TaskServiceProvider::class,
+            NotificationServiceProvider::class,
+            SupportServiceProvider::class,
         ];
     }
 
@@ -41,9 +47,7 @@ abstract class IntegrationTestCase extends Orchestra
     protected function runMigrations(): void
     {
         $migrationPaths = [
-            // Modules
             __DIR__.'/../database/migrations',
-            // Fixtures (test models)
             __DIR__.'/Fixtures/database/migrations',
         ];
 

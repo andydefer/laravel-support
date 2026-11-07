@@ -6,7 +6,6 @@ namespace AndyDefer\Support\Repositories;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\AbstractRepository;
-use AndyDefer\Support\Enums\TicketStatus;
 use AndyDefer\Support\Models\Ticket;
 use AndyDefer\Support\Records\TicketFiltersRecord;
 use AndyDefer\Support\Records\TicketRecord;
@@ -27,9 +26,9 @@ final class TicketRepository extends AbstractRepository
 
         if ($filters->search !== null) {
             $query->where(function (Builder $q) use ($filters): void {
-                $q->where('reference', 'like', '%' . $filters->search . '%')
-                  ->orWhere('title', 'like', '%' . $filters->search . '%')
-                  ->orWhere('description', 'like', '%' . $filters->search . '%');
+                $q->where('reference', 'like', '%'.$filters->search.'%')
+                    ->orWhere('title', 'like', '%'.$filters->search.'%')
+                    ->orWhere('description', 'like', '%'.$filters->search.'%');
             });
         }
 
@@ -41,38 +40,38 @@ final class TicketRepository extends AbstractRepository
             $query->where('priority', $filters->priority->value);
         }
 
-        if ($filters->createdByType !== null) {
-            $query->where('created_by_type', $filters->createdByType);
+        if ($filters->created_by_type !== null) {
+            $query->where('created_by_type', $filters->created_by_type);
         }
 
-        if ($filters->createdById !== null) {
-            $query->where('created_by_id', $filters->createdById);
+        if ($filters->created_by_id !== null) {
+            $query->where('created_by_id', $filters->created_by_id);
         }
 
-        if ($filters->assignedToType !== null) {
-            $query->where('assigned_to_type', $filters->assignedToType);
+        if ($filters->assigned_to_type !== null) {
+            $query->where('assigned_to_type', $filters->assigned_to_type);
         }
 
-        if ($filters->assignedToId !== null) {
-            $query->where('assigned_to_id', $filters->assignedToId);
+        if ($filters->assigned_to_id !== null) {
+            $query->where('assigned_to_id', $filters->assigned_to_id);
         }
 
-        if ($filters->isAssigned !== null) {
-            $filters->isAssigned
+        if ($filters->is_assigned !== null) {
+            $filters->is_assigned
                 ? $query->whereNotNull('assigned_to_id')
                 : $query->whereNull('assigned_to_id');
         }
 
-        if ($filters->fromDate !== null) {
-            $query->whereDate('created_at', '>=', $filters->fromDate);
+        if ($filters->from_date !== null) {
+            $query->whereDate('created_at', '>=', $filters->from_date);
         }
 
-        if ($filters->toDate !== null) {
-            $query->whereDate('created_at', '<=', $filters->toDate);
+        if ($filters->to_date !== null) {
+            $query->whereDate('created_at', '<=', $filters->to_date);
         }
 
-        if ($filters->clusterQuery !== null) {
-            $query->whereCluster('metadata', $filters->clusterQuery);
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
         }
     }
 }

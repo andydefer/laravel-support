@@ -6,16 +6,26 @@ namespace AndyDefer\Support\Enums;
 
 use AndyDefer\Repository\Contracts\EnumerableInterface;
 
-enum TicketStatus: int implements EnumerableInterface
+enum TicketStatus: string implements EnumerableInterface
 {
-    case OPEN = 0;
-    case PENDING = 1;
-    case RESOLVED = 2;
-    case CLOSED = 3;
+    case OPEN = 'open';
+    case PENDING = 'pending';
+    case RESOLVED = 'resolved';
+    case CLOSED = 'closed';
 
-    public function getValue(): int
+    public function getValue(): string
     {
         return $this->value;
+    }
+
+    public function toInt(): int
+    {
+        return match ($this) {
+            self::OPEN => 0,
+            self::PENDING => 1,
+            self::RESOLVED => 2,
+            self::CLOSED => 3,
+        };
     }
 
     public function getLabel(): string

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Models;
+namespace AndyDefer\Support\Tests\Fixtures\Models;
 
 use AndyDefer\Mfa\Otp\Contracts\MustOtpChannels;
 use AndyDefer\Mfa\Otp\Traits\HasOneTimePasswords;

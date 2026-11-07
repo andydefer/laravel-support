@@ -11,16 +11,17 @@ use AndyDefer\Support\Enums\SenderType;
 final class TicketMessageFiltersRecord extends AbstractRecord
 {
     public function __construct(
-        public readonly ?string $ticketId = null,
-        public readonly ?string $replyToId = null,
-        public readonly ?bool $isReply = null,
-        public readonly ?SenderType $senderType = null,
-        public readonly ?MessageStatus $status = null,
-        public readonly ?string $authorType = null,
-        public readonly ?string $authorId = null,
         public readonly ?string $search = null,
-        public readonly ?string $fromDate = null,
-        public readonly ?string $toDate = null,
-        public readonly ?string $clusterQuery = null,
+        public readonly ?string $ticket_id = null,
+        public readonly ?string $reply_to_id = null,
+        public readonly ?bool $is_reply = null,
+        public readonly ?bool $is_internal = null,
+        public readonly ?SenderType $sender_type = null,
+        public readonly ?MessageStatus $status = null,
+        public readonly ?string $author_type = null,
+        public readonly ?string $author_id = null,
+        public readonly ?string $from_date = null,
+        public readonly ?string $to_date = null,
+        public readonly ?string $cluster_query = null,
     ) {}
 }

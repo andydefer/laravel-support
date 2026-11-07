@@ -9,18 +9,13 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Migration to create the test_users table for package testing.
  *
- * This table is used exclusively by the test suite to verify OTP
- * functionality with a realistic Eloquent model. It includes standard
- * user fields and soft deletes support.
+ * This table is used exclusively by the test suite to verify Support
+ * functionality with a realistic Eloquent model. It includes the standard
+ * user fields, plus the columns used by `TestUser` (role, status, age,
+ * metadata) and soft deletes.
  */
 return new class extends Migration
 {
-    /**
-     * Run the migration.
-     *
-     * Creates the test_users table with standard user authentication fields,
-     * timestamps, and soft delete support.
-     */
     public function up(): void
     {
         Schema::create('test_users', function (Blueprint $table): void {
@@ -29,17 +24,19 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password')->nullable();
             $table->string('remember_token')->nullable();
+
+            $table->string('status', 32)->default('active');
+            $table->string('role', 32)->default('user');
+            $table->unsignedTinyInteger('age')->nullable();
+
+            $table->json('metadata')->nullable();
+
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migration.
-     *
-     * Drops the test_users table if it exists.
-     */
     public function down(): void
     {
         Schema::dropIfExists('test_users');

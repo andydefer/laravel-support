@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Data;
+namespace AndyDefer\Support\Tests\Fixtures\Data;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractData;
 

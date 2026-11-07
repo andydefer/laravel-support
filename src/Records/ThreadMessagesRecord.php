@@ -1,0 +1,17 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AndyDefer\Support\Records;
+
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+
+final class ThreadMessagesRecord extends AbstractRecord
+{
+    public function __construct(
+        public readonly ?string $ticket_id = null,
+        public readonly bool $include_internal = false,
+        public readonly int $per_page = 50,
+        public readonly int $page = 1,
+    ) {}
+}

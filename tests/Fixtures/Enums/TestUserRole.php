@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Enums;
+namespace AndyDefer\Support\Tests\Fixtures\Enums;
 
 enum TestUserRole: string
 {

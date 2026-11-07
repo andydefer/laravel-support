@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Data;
+namespace AndyDefer\Support\Tests\Fixtures\Data;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractData;
 use AndyDefer\DomainStructures\Utils\DataObject;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Collections\TestPostDataCollection;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Enums\TestUserRole;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Enums\TestUserStatus;
+use AndyDefer\Support\Tests\Fixtures\Collections\TestPostDataCollection;
+use AndyDefer\Support\Tests\Fixtures\Enums\TestUserRole;
+use AndyDefer\Support\Tests\Fixtures\Enums\TestUserStatus;
 
 final class TestUserData extends AbstractData
 {

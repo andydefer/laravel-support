@@ -6,14 +6,22 @@ namespace AndyDefer\Support\Enums;
 
 use AndyDefer\Repository\Contracts\EnumerableInterface;
 
-enum SenderType: int implements EnumerableInterface
+enum SenderType: string implements EnumerableInterface
 {
-    case CREATOR = 0;
-    case RESOLVER = 1;
+    case CREATOR = 'creator';
+    case RESOLVER = 'resolver';
 
-    public function getValue(): int
+    public function getValue(): string
     {
         return $this->value;
+    }
+
+    public function toInt(): int
+    {
+        return match ($this) {
+            self::CREATOR => 0,
+            self::RESOLVER => 1,
+        };
     }
 
     public function getLabel(): string

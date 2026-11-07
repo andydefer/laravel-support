@@ -24,50 +24,46 @@ final class TicketMessageRepository extends AbstractRepository
             return;
         }
 
-        if ($filters->ticketId !== null) {
-            $query->where('ticket_id', $filters->ticketId);
+        if ($filters->ticket_id !== null) {
+            $query->where('ticket_id', $filters->ticket_id);
         }
 
-        if ($filters->replyToId !== null) {
-            $query->where('reply_to_id', $filters->replyToId);
+        if ($filters->reply_to_id !== null) {
+            $query->where('reply_to_id', $filters->reply_to_id);
         }
 
-        if ($filters->isReply !== null) {
-            $filters->isReply
+        if ($filters->is_reply !== null) {
+            $filters->is_reply
                 ? $query->whereNotNull('reply_to_id')
                 : $query->whereNull('reply_to_id');
         }
 
-        if ($filters->senderType !== null) {
-            $query->where('sender_type', $filters->senderType->value);
+        if ($filters->is_internal !== null) {
+            $query->where('is_internal', $filters->is_internal);
+        }
+
+        if ($filters->sender_type !== null) {
+            $query->where('sender_type', $filters->sender_type->value);
         }
 
         if ($filters->status !== null) {
             $query->where('status', $filters->status->value);
         }
 
-        if ($filters->authorType !== null) {
-            $query->where('author_type', $filters->authorType);
-        }
-
-        if ($filters->authorId !== null) {
-            $query->where('author_id', $filters->authorId);
-        }
-
         if ($filters->search !== null) {
             $query->where('content', 'like', '%'.$filters->search.'%');
         }
 
-        if ($filters->fromDate !== null) {
-            $query->whereDate('created_at', '>=', $filters->fromDate);
+        if ($filters->from_date !== null) {
+            $query->whereDate('created_at', '>=', $filters->from_date);
         }
 
-        if ($filters->toDate !== null) {
-            $query->whereDate('created_at', '<=', $filters->toDate);
+        if ($filters->to_date !== null) {
+            $query->whereDate('created_at', '<=', $filters->to_date);
         }
 
-        if ($filters->clusterQuery !== null) {
-            $query->whereCluster('metadata', $filters->clusterQuery);
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
         }
     }
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests;
+namespace AndyDefer\Support\Tests;
 
 use PHPUnit\Framework\TestCase as BaseTestCase;
 

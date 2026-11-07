@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Records;
+namespace AndyDefer\Support\Tests\Fixtures\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Collections\TestPostRecordCollection;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Enums\TestUserRole;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Enums\TestUserStatus;
+use AndyDefer\Support\Tests\Fixtures\Collections\TestPostRecordCollection;
+use AndyDefer\Support\Tests\Fixtures\Enums\TestUserRole;
+use AndyDefer\Support\Tests\Fixtures\Enums\TestUserStatus;
 
 final class TestUserRecord extends AbstractRecord
 {

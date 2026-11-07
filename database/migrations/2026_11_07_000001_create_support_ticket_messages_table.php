@@ -25,10 +25,12 @@ return new class extends Migration
                 ->on('support_ticket_messages')
                 ->nullOnDelete();
 
-            $table->unsignedTinyInteger('sender_type');
+            // Enums string (backed)
+            $table->string('sender_type', 32);
+            $table->string('status', 32)->default('sent');
 
             $table->longText('content');
-            $table->unsignedTinyInteger('status')->default(0);
+            $table->boolean('is_internal')->default(false);
 
             $table->json('metadata')->nullable();
 
@@ -36,8 +38,9 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->index(['ticket_id', 'created_at']);
-            $table->index('status');
             $table->index('sender_type');
+            $table->index('status');
+            $table->index('is_internal');
             $table->index('reply_to_id');
         });
     }

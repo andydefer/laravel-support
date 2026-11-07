@@ -23,8 +23,9 @@ return new class extends Migration
             $table->string('assigned_to_type', 191)->nullable();
             $table->string('assigned_to_id', 191)->nullable();
 
-            $table->unsignedTinyInteger('status');
-            $table->unsignedTinyInteger('priority');
+            // Enums string (backed)
+            $table->string('status', 32)->default('open');
+            $table->string('priority', 32)->default('normal');
 
             $table->timestamp('assigned_at')->nullable();
             $table->timestamp('resolved_at')->nullable();

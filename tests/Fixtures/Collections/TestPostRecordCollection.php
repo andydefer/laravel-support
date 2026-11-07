@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelRatings\Tests\Fixtures\Collections;
+namespace AndyDefer\Support\Tests\Fixtures\Collections;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
-use AndyDefer\LaravelRatings\Tests\Fixtures\Records\TestPostRecord;
+use AndyDefer\Support\Tests\Fixtures\Records\TestPostRecord;
 
 final class TestPostRecordCollection extends AbstractTypedCollection
 {

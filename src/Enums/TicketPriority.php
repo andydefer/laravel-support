@@ -6,16 +6,26 @@ namespace AndyDefer\Support\Enums;
 
 use AndyDefer\Repository\Contracts\EnumerableInterface;
 
-enum TicketPriority: int implements EnumerableInterface
+enum TicketPriority: string implements EnumerableInterface
 {
-    case LOW = 0;
-    case NORMAL = 1;
-    case HIGH = 2;
-    case URGENT = 3;
+    case LOW = 'low';
+    case NORMAL = 'normal';
+    case HIGH = 'high';
+    case URGENT = 'urgent';
 
-    public function getValue(): int
+    public function getValue(): string
     {
         return $this->value;
+    }
+
+    public function toInt(): int
+    {
+        return match ($this) {
+            self::LOW => 0,
+            self::NORMAL => 1,
+            self::HIGH => 2,
+            self::URGENT => 3,
+        };
     }
 
     public function getLabel(): string

@@ -623,4 +623,4 @@ Si vous trouvez ce package utile, n'hésitez pas à lui donner une ⭐ sur GitHu
 | `$rating->getDeletedAt()` | `$rating->deleted_at` |
 | `$rating->getMetadata()` | `$rating->metadata` |
 | `$rating->getRatingLevel()` | `$rating->rating_level` |
-| `$rating->getReview()` | `$rating->review` |
+| `$rating->getReview()` | `$rating->review` |# andydefer-laravel-support

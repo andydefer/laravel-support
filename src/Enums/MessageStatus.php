@@ -6,13 +6,13 @@ namespace AndyDefer\Support\Enums;
 
 use AndyDefer\Repository\Contracts\EnumerableInterface;
 
-enum MessageStatus: int implements EnumerableInterface
+enum MessageStatus: string implements EnumerableInterface
 {
-    case SENT = 0;
-    case DISPATCHED = 1;
-    case READ = 2;
+    case SENT = 'sent';
+    case DISPATCHED = 'dispatched';
+    case READ = 'read';
 
-    public function getValue(): int
+    public function getValue(): string
     {
         return $this->value;
     }
